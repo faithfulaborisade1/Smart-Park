@@ -1,35 +1,19 @@
 const express = require('express');
-const mysql = require('mysql2');
 const bodyParser = require('body-parser');
+const cors = require('cors');
+const db = require('./database'); // Import database connection
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const validateSession = require('./middleware/validateSession');
 
 const app = express();
 const port = 5000;
 
-const cors = require('cors');
-app.use(cors());
-
-
 // Middleware
+app.use(cors());
 app.use(bodyParser.json());
 
-// MySQL Connection
-const db = mysql.createConnection({
-  host: 'localhost', // Replace with your database host
-  user: 'root', // Replace with your MySQL username
-  password: '', // Replace with your MySQL password
-  database: 'smartpark', // Replace with your database name
-});
 
-db.connect((err) => {
-  if (err) {
-    console.error('Error connecting to database:', err.message);
-  } else {
-    console.log('Connected to MySQL database');
-  }
-});
-
-// Routes
-const bcrypt = require('bcryptjs'); // Import bcrypt
 
 app.post('/signup', async (req, res) => {
   const { username, email, password } = req.body;
@@ -62,46 +46,80 @@ app.post('/signup', async (req, res) => {
 
   
 
+ 
+
 app.post('/login', async (req, res) => {
-    const { username, password } = req.body;
-  
-    if (!username || !password) {
-      return res.status(400).json({ error: 'All fields are required' });
-    }
-  
-    try {
-      // Fetch the user from the database
-      const query = 'SELECT * FROM users WHERE username = ?';
-      db.query(query, [username], async (err, results) => {
-        if (err) {
-          console.error(err);
-          return res.status(500).json({ error: 'Database error' });
+  const { username, password } = req.body;
+
+  if (!username || !password) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+
+  try {
+    // Fetch the user from the database
+    const query = 'SELECT * FROM users WHERE username = ?';
+    db.query(query, [username], async (err, results) => {
+      if (err) {
+        console.error(err);
+        return res.status(500).json({ error: 'Database error' });
+      }
+
+      if (results.length === 0) {
+        return res.status(401).json({ error: 'Invalid username or password' });
+      }
+
+      const user = results[0];
+
+      // Compare the hashed password
+      const isMatch = await bcrypt.compare(password, user.password_hash);
+      if (!isMatch) {
+        return res.status(401).json({ error: 'Invalid username or password' });
+      }
+
+      // Generate a session token
+      const sessionToken = crypto.randomBytes(64).toString('hex');
+
+      // Store the session in the database
+      const insertSessionQuery = `
+        INSERT INTO user_sessions (user_id, session_token, ip_address) 
+        VALUES (?, ?, ?)
+      `;
+      const userIp = req.ip || 'unknown'; // Get the user's IP address
+      db.query(insertSessionQuery, [user.user_id, sessionToken, userIp], (insertErr) => {
+        if (insertErr) {
+          console.error(insertErr);
+          return res.status(500).json({ error: 'Failed to create session' });
         }
-  
-        if (results.length === 0) {
-          return res.status(401).json({ error: 'Invalid username or password' });
-        }
-  
-        const user = results[0];
-  
-        // Compare the hashed password with the entered password
-        const isMatch = await bcrypt.compare(password, user.password_hash);
-        if (!isMatch) {
-          return res.status(401).json({ error: 'Invalid username or password' });
-        }
-  
-        // Login successful
-        res.status(200).json({ message: 'Login successful' });
+
+        // Return the session token to the client
+        res.status(200).json({ message: 'Login successful', session_token: sessionToken });
       });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: 'Server error' });
-    }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
+ 
+
+app.post('/logout', validateSession, (req, res) => {
+    const sessionToken = req.headers.authorization;
+  
+    const query = 'DELETE FROM user_sessions WHERE session_token = ?';
+    db.query(query, [sessionToken], (err) => {
+      if (err) {
+        console.error(err);
+        return res.status(500).json({ error: 'Failed to logout' });
+      }
+      res.status(200).json({ message: 'Logged out successfully' });
+    });
   });
   
-  
+  // Start server
+  app.listen(port, () => {
+    console.log(`Server running on http://localhost:${port}`);
+  });
 
-// Start server
-app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`);
-});
+  

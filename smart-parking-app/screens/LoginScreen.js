@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const LoginScreen = ({ navigation }) => {
   const [username, setUsername] = useState('');
@@ -14,18 +15,16 @@ const LoginScreen = ({ navigation }) => {
       body: JSON.stringify({ username, password }),
     })
       .then((response) => response.json())
-      .then((data) => {
-        if (data.error) {
-          Alert.alert('Error', data.error);
-        } else {
+      .then(async (data) => {
+        if (data.session_token) {
+          await AsyncStorage.setItem('session_token', data.session_token);
           Alert.alert('Success', 'Login successful');
           navigation.navigate('Dashboard');
+        } else {
+          Alert.alert('Error', data.error || 'Invalid login');
         }
       })
-      .catch((err) => {
-        console.error(err);
-        Alert.alert('Error', 'Something went wrong');
-      });
+      .catch(() => Alert.alert('Error', 'Something went wrong'));
   };
   
 
