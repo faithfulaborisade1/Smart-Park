@@ -3,7 +3,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import LoginScreen from './screens/LoginScreen';
 import SignupScreen from './screens/SignupScreen';
-import Dashboard from './screens/Dashboard'; // Import Dashboard screen
+import Dashboard from './screens/Dashboard';
+import DetectionScreen from './screens/DetectionScreen';
 
 const Stack = createStackNavigator();
 
@@ -14,6 +15,7 @@ export default function App() {
         <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Signup" component={SignupScreen} options={{ title: 'Sign Up' }} />
         <Stack.Screen name="Dashboard" component={Dashboard} options={{ title: 'Dashboard' }} />
+        <Stack.Screen name="Detection" component={DetectionScreen} options={{ title: 'YOLO Detection' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

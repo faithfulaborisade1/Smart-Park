@@ -8,7 +8,12 @@ const SignupScreen = ({ navigation }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
 
   const handleSignup = () => {
-    fetch('http://localhost:5000/signup', {
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+
+    fetch('http://192.168.163.210:5000/signup', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -29,7 +34,6 @@ const SignupScreen = ({ navigation }) => {
         Alert.alert('Error', 'Something went wrong');
       });
   };
-  
 
   return (
     <View style={styles.container}>
