@@ -5,6 +5,7 @@ import LoginScreen from './screens/LoginScreen';
 import SignupScreen from './screens/SignupScreen';
 import Dashboard from './screens/Dashboard';
 import DetectionScreen from './screens/DetectionScreen';
+import ParkingLot from './screens/ParkingLayout';
 
 const Stack = createStackNavigator();
 
@@ -16,6 +17,8 @@ export default function App() {
         <Stack.Screen name="Signup" component={SignupScreen} options={{ title: 'Sign Up' }} />
         <Stack.Screen name="Dashboard" component={Dashboard} options={{ title: 'Dashboard' }} />
         <Stack.Screen name="Detection" component={DetectionScreen} options={{ title: 'YOLO Detection' }} />
+        <Stack.Screen name="ParkingLayout" component={ParkingLot} options={{ title: 'Parking Layout' }} />
+
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -13,7 +13,7 @@ const SignupScreen = ({ navigation }) => {
       return;
     }
 
-    fetch('http://192.168.163.210:5000/signup', {
+    fetch('http://192.168.8.48:5000/signup', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

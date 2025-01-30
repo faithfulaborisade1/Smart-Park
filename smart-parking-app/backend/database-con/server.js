@@ -1,3 +1,4 @@
+// const { FLASK_BASE_URL } = require('./config');
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
@@ -116,10 +117,26 @@ app.post('/logout', validateSession, (req, res) => {
       res.status(200).json({ message: 'Logged out successfully' });
     });
   });
+
+
+
+  app.get('/api/parking-status', (req, res) => {
+    console.log('Received request for parking status');
+    const query = 'SELECT space_id, space_number, status FROM parking_spaces';
+    db.query(query, (err, results) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        console.log('Sending response:', results);
+        res.status(200).json(results);
+    });
+});
+
   
   // Start server
   app.listen(port, '0.0.0.0', () => {
-    console.log(`Server running on http://192.168.163.210:${port}`);
+    console.log(`Server running on http://192.168.8.48:${port}`);
   });
 
   app.get('/', (req, res) => {

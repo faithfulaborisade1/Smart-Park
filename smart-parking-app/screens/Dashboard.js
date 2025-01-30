@@ -1,13 +1,14 @@
 import React from 'react';
 import { View, Text, StyleSheet, Button, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BASE_URL } from '../config';
 
 const Dashboard = ({ navigation }) => {
   const handleLogout = async () => {
     try {
       const sessionToken = await AsyncStorage.getItem('session_token');
 
-      const response = await fetch('http://192.168.163.210:5000/logout', { // Correct URL
+      const response = await fetch('http://192.168.8.48:5000/logout', { // Correct URL
         method: 'POST',
         headers: {
           'Authorization': sessionToken,
@@ -32,6 +33,7 @@ const Dashboard = ({ navigation }) => {
       <Text style={styles.text}>Welcome to the Dashboard!</Text>
       <Button title="Go to Detection" onPress={() => navigation.navigate('Detection')} color="#4682B4" />
       <Button title="Logout" onPress={handleLogout} color="#FF6347" />
+      <Button title="Go to Parking Layout"  onPress={() => navigation.navigate('ParkingLayout')} />
     </View>
   );
 };
