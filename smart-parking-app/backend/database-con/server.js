@@ -6,6 +6,7 @@ const db = require('./database'); // Import database connection
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const validateSession = require('./middleware/validateSession');
+const { body, validationResult } = require('express-validator');
 
 const app = express();
 const port = 5000;
@@ -120,23 +121,52 @@ app.post('/logout', validateSession, (req, res) => {
 
 
 
-  app.get('/api/parking-status', (req, res) => {
-    console.log('Received request for parking status');
-    const query = 'SELECT space_id, space_number, status FROM parking_spaces';
-    db.query(query, (err, results) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ error: 'Database error' });
-        }
-        console.log('Sending response:', results);
-        res.status(200).json(results);
-    });
+//   app.get('/api/parking-status', (req, res) => {
+//     console.log('Received request for parking status');
+//     const query = 'SELECT space_id, space_number, status FROM parking_spaces';
+//     db.query(query, (err, results) => {
+//         if (err) {
+//             console.error(err);
+//             return res.status(500).json({ error: 'Database error' });
+//         }
+//         console.log('Sending response:', results);
+//         res.status(200).json(results);
+//     });
+// });
+
+app.get('/api/parking-status', (req, res) => {
+  const lot = req.query.lot || 'EB1';
+  const query = 'SELECT * FROM parking_spaces WHERE lot_id = ?';
+  db.query(query, [lot], (err, results) => {
+      if (err) {
+          console.error(err);
+          return res.status(500).json({ error: 'Database error' });
+      }
+      res.json(results);
+  });
 });
+
+
+
+app.get('/api/parking-lots', (req, res) => {
+  const query = 'SELECT id, name FROM parking_lots';
+  db.query(query, (err, results) => {
+      if (err) {
+          console.error(err);
+          return res.status(500).json({ error: 'Database error' });
+      }
+      if (results.length === 0) {
+          return res.status(404).json({ error: 'No parking lots found' });
+      }
+      res.json(results);
+  });
+});
+
 
   
   // Start server
   app.listen(port, '0.0.0.0', () => {
-    console.log(`Server running on http://192.168.8.48:${port}`);
+    console.log(`Server running on http://192.168.8.51:${port}`);
   });
 
   app.get('/', (req, res) => {

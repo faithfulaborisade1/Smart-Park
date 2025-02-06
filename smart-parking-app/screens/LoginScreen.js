@@ -6,8 +6,8 @@ const LoginScreen = ({ navigation }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleLogin = () => {
-    fetch('http://192.168.8.48:5000/login', {
+  const handleLogin = async () => {
+    fetch('http://192.168.8.51:5000/login', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -18,14 +18,17 @@ const LoginScreen = ({ navigation }) => {
       .then(async (data) => {
         if (data.session_token) {
           await AsyncStorage.setItem('session_token', data.session_token);
+          await AsyncStorage.setItem('username', username); // Store username
+          await AsyncStorage.setItem('last_login', new Date().toLocaleString()); // Store last login time
           Alert.alert('Success', 'Login successful');
-          navigation.navigate('Dashboard');
+          navigation.navigate('HomeTabs');
         } else {
           Alert.alert('Error', data.error || 'Invalid login');
         }
       })
       .catch(() => Alert.alert('Error', 'Something went wrong'));
   };
+  
   
 
   return (
