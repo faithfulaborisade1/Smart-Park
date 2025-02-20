@@ -134,31 +134,80 @@ app.post('/logout', validateSession, (req, res) => {
 //     });
 // });
 
+// app.get('/api/parking-status', (req, res) => {
+//   const area = req.query.lot || 'EB1'; // 'lot' in query, but should match area_id
+
+//   if (!area.match(/^[A-Za-z0-9_-]+$/)) {  
+//       return res.status(400).json({ error: 'Invalid area ID' });
+//   }
+
+//   const query = 'SELECT * FROM parking_spaces WHERE area_id = ?'; // area_id instead of lot_id
+//   db.query(query, [area], (err, results) => {
+//       if (err) {
+//           console.error(err);
+//           return res.status(500).json({ error: 'Database error' });
+//       }
+//       res.json(results);
+//   });
+// });
+
 app.get('/api/parking-status', (req, res) => {
-  const lot = req.query.lot || 'EB1';
-  const query = 'SELECT * FROM parking_spaces WHERE lot_id = ?';
+  const { lot } = req.query;
+
+  if (!lot) {
+      return res.status(400).json([]); // Always return an array if no lot is provided
+  }
+
+  const query = 'SELECT * FROM parking_spaces WHERE area_id = ?';
   db.query(query, [lot], (err, results) => {
       if (err) {
-          console.error(err);
-          return res.status(500).json({ error: 'Database error' });
+          console.error("Database error:", err);
+          return res.status(500).json([]); // Return an empty array on error
       }
-      res.json(results);
+
+      res.json(Array.isArray(results) ? results : []); // Ensure response is always an array
+  });
+});
+
+app.get('/api/parking-summary', (req, res) => {
+  const query = `
+      SELECT 
+          COUNT(*) AS total, 
+          SUM(CASE WHEN status = 'available' THEN 1 ELSE 0 END) AS available, 
+          SUM(CASE WHEN status = 'occupied' THEN 1 ELSE 0 END) AS occupied, 
+          SUM(CASE WHEN status = 'reserved' THEN 1 ELSE 0 END) AS reserved 
+      FROM parking_spaces
+  `;
+
+  db.query(query, (err, results) => {
+      if (err) {
+          console.error("Database error:", err);
+          return res.status(500).json({ total: 0, available: 0, occupied: 0, reserved: 0 });
+      }
+
+      res.json(results[0]); // ✅ Send totals as an object
   });
 });
 
 
 
+
+
+
+
+
+
+
+
 app.get('/api/parking-lots', (req, res) => {
-  const query = 'SELECT id, name FROM parking_lots';
+  const query = 'SELECT area_id AS id, name FROM parking_areas';
+
   db.query(query, (err, results) => {
       if (err) {
-          console.error(err);
-          return res.status(500).json({ error: 'Database error' });
+          console.error("Database error:", err);
+          return res.status(500).json([]); // Always return an array on error
       }
-      if (results.length === 0) {
-          return res.status(404).json({ error: 'No parking lots found' });
-      }
-      res.json(results);
+      res.json(results.length > 0 ? results : []); // Ensure response is always an array
   });
 });
 

@@ -17,24 +17,22 @@ const Dashboard = ({ navigation }) => {
 
     const fetchParkingStatus = async () => {
       try {
-        const response = await fetch('http://192.168.8.51:5000/api/parking-status');
-        const data = await response.json();
-
-        const totalSpaces = data.length;
-        const availableSpaces = data.filter(space => space.status === 'available').length;
-        const occupiedSpaces = data.filter(space => space.status === 'occupied').length;
-        const reservedSpaces = data.filter(space => space.status === 'reserved').length;
-
-        setParkingData({
-          total: totalSpaces,
-          available: availableSpaces,
-          occupied: occupiedSpaces,
-          reserved: reservedSpaces,
-        });
+          const response = await fetch('http://192.168.8.51:5000/api/parking-summary');
+          const data = await response.json();
+  
+          console.log("Dashboard API Response:", data); // ✅ Log response to debug
+  
+          setParkingData({
+              total: data.total || 0,
+              available: data.available || 0,
+              occupied: data.occupied || 0,
+              reserved: data.reserved || 0,
+          });
       } catch (error) {
-        console.error('Error fetching parking data:', error);
+          console.error('Error fetching parking summary:', error);
       }
-    };
+  };
+  
 
     fetchUserData();
     fetchParkingStatus();
