@@ -9,7 +9,7 @@ const ProfileScreen = ({ navigation }) => {
   const handleLogout = async () => {
     try {
       const sessionToken = await AsyncStorage.getItem('session_token');
-      const response = await fetch('http://192.168.8.51:5000/logout', {
+      const response = await fetch('http://192.168.112.210:5000/logout', {
         method: 'POST',
         headers: { 'Authorization': sessionToken },
       });

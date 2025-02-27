@@ -17,7 +17,7 @@ const Dashboard = ({ navigation }) => {
 
     const fetchParkingStatus = async () => {
       try {
-          const response = await fetch('http://192.168.8.51:5000/api/parking-summary');
+          const response = await fetch('http://192.168.112.210:5000/api/parking-summary');
           const data = await response.json();
   
           console.log("Dashboard API Response:", data); // ✅ Log response to debug

@@ -7,6 +7,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const validateSession = require('./middleware/validateSession');
 const { body, validationResult } = require('express-validator');
+// const notificationRoutes = require('./routes/notifications')
 
 const app = express();
 const port = 5000;
@@ -14,6 +15,10 @@ const port = 5000;
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
+/* The line `app.use('/api', notificationRoutes);` is mounting the `notificationRoutes` middleware at
+the `/api` path in the Express application. This means that any requests that start with `/api` will
+be passed to the `notificationRoutes` middleware for further processing. */
+// app.use('/api', notificationRoutes);
 
 
 
@@ -191,14 +196,6 @@ app.get('/api/parking-summary', (req, res) => {
 
 
 
-
-
-
-
-
-
-
-
 app.get('/api/parking-lots', (req, res) => {
   const query = 'SELECT area_id AS id, name FROM parking_areas';
 
@@ -212,10 +209,122 @@ app.get('/api/parking-lots', (req, res) => {
 });
 
 
+app.get('/api/parking-space/:space_id', (req, res) => {
+  const { space_id } = req.params;
+
+  const query = 'SELECT space_id, space_number, latitude, longitude FROM parking_spaces WHERE space_id = ?';
+  db.query(query, [space_id], (err, results) => {
+      if (err) {
+          console.error("Database error:", err);
+          return res.status(500).json({ error: 'Database error' });
+      }
+
+      if (results.length === 0) {
+          return res.status(404).json({ error: 'Parking space not found' });
+      }
+
+      res.json(results[0]); // Return the first matching result
+  });
+});
+
+// 📌 Add a new notification
+app.post('/api/notifications', (req, res) => {
+  const { message, parking_space_id } = req.body;
+
+  if (!message || !parking_space_id) {
+      return res.status(400).json({ error: "Message and parking_space_id are required" });
+  }
+
+  const query = `INSERT INTO notifications (user_id, message, parking_space_id, is_read) VALUES (NULL, ?, ?, 0)`;
+  db.query(query, [message, parking_space_id], (err, result) => {
+      if (err) {
+          console.error("Database error:", err);
+          return res.status(500).json({ error: "Failed to insert notification" });
+      }
+      res.status(201).json({ message: "Notification added", notification_id: result.insertId });
+  });
+});
+
+// 📌 Fetch all notifications
+app.get('/api/notifications', (req, res) => {
+  const query = `
+      SELECT n.notification_id, n.message, n.created_at, ps.space_number, pa.name AS area_name
+      FROM notifications n
+      LEFT JOIN parking_spaces ps ON n.parking_space_id = ps.space_id
+      LEFT JOIN parking_areas pa ON ps.area_id = pa.area_id
+      ORDER BY n.created_at DESC
+  `;
+
+  db.query(query, (err, results) => {
+      if (err) {
+          console.error("Database error:", err);
+          return res.status(500).json({ error: "Failed to fetch notifications" });
+      }
+
+      // Format messages to include area & slot
+      const formattedNotifications = results.map(notif => ({
+          notification_id: notif.notification_id,
+          message: `⚠️ ${notif.area_name} - Slot ${notif.space_number}: ${notif.message}`,
+          created_at: notif.created_at
+      }));
+
+      res.status(200).json(formattedNotifications);
+  });
+});
+
+// 📌 Mark a notification as read
+app.put('/api/notifications/:id/read', (req, res) => {
+  const { id } = req.params;
+  const query = `UPDATE notifications SET is_read = 1 WHERE notification_id = ?`;
+
+  db.query(query, [id], (err, result) => {
+      if (err) {
+          console.error("Database error:", err);
+          return res.status(500).json({ error: "Failed to update notification" });
+      }
+      res.status(200).json({ message: "Notification marked as read" });
+  });
+});
+
+// 📌 Delete a notification
+app.delete('/api/notifications/:id', (req, res) => {
+  const { id } = req.params;
+  const query = `DELETE FROM notifications WHERE notification_id = ?`;
+
+  db.query(query, [id], (err, result) => {
+      if (err) {
+          console.error("Database error:", err);
+          return res.status(500).json({ error: "Failed to delete notification" });
+      }
+      res.status(200).json({ message: "Notification deleted" });
+  });
+});
+
+
+app.post('/api/detect_violation', (req, res) => {
+  const { parking_space_id, license_plate } = req.body;
+
+  if (!parking_space_id) {
+      return res.status(400).json({ error: "Missing parking_space_id" });
+  }
+
+  const message = `🚧 Parking Violation Detected: Slot ${parking_space_id} is obstructed.`;
+
+  const query = `INSERT INTO notifications (user_id, message, parking_space_id, is_read) VALUES (NULL, ?, ?, 0)`;
+  db.query(query, [message, parking_space_id], (err, result) => {
+      if (err) {
+          console.error("Database error:", err);
+          return res.status(500).json({ error: "Failed to insert notification" });
+      }
+      res.status(201).json({ message: "Violation recorded", notification: message });
+  });
+});
+
+
   
   // Start server
   app.listen(port, '0.0.0.0', () => {
-    console.log(`Server running on http://192.168.8.51:${port}`);
+    console.log(`Server running on http://192.168.112.210:${port}`);
   });
 
   app.get('/', (req, res) => {

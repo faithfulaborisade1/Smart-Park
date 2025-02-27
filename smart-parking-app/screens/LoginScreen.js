@@ -7,7 +7,7 @@ const LoginScreen = ({ navigation }) => {
   const [password, setPassword] = useState('');
 
   const handleLogin = async () => {
-    fetch('http://192.168.8.51:5000/login', {
+    fetch('http://192.168.112.210:5000/login', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
