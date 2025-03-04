@@ -5,6 +5,9 @@ import MapViewDirections from 'react-native-maps-directions';
 import * as Location from 'expo-location';
 import { GOOGLE_MAPS_API_KEY } from '@env';
 
+const Maps = Platform.OS === 'web' ? () => null : require('react-native-maps');
+
+
 const NavigationScreen = ({ route }) => {
     const { latitude, longitude, spaceNumber } = route.params;
     const [userLocation, setUserLocation] = useState(null);

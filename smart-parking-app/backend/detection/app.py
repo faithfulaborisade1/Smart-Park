@@ -8,18 +8,19 @@ app = Flask(__name__)
 
 # Load YOLO model
 model = YOLO('yolo11n.pt')
+print(model.names)  # ✅ Log available class names
 
-# Backend API endpoint (replace with your actual backend IP)
+# Backend API endpoint for sending violations
 BACKEND_API = "http://192.168.112.210:5000/api/detect_violation"
 
-# Define parking space boundaries (for future improvements)
+# Define parking space boundaries (For fine-tuning)
 PARKING_SPACES = {
-    1: [(50, 100), (200, 300)],  # Example: Parking Space 1 bounding box
-    2: [(250, 350), (400, 500)],
-    # Add actual parking space coordinates when available
+    1: [(50, 100), (200, 300)],  # Example bounding box for Slot 1
+    2: [(250, 350), (400, 500)], # Example bounding box for Slot 2
+    # 🚀 Add real parking space coordinates here
 }
 
-# 🚨 Function to send a parking violation notification to backend
+# 🚨 Function to send a violation notification to backend
 def send_violation_notification(parking_space_id, license_plate=None):
     data = {
         "parking_space_id": parking_space_id,
@@ -31,19 +32,18 @@ def send_violation_notification(parking_space_id, license_plate=None):
     except Exception as e:
         print("❌ Failed to send violation:", e)
 
-# ✅ Endpoint for single-frame detection
-@app.route('/detect', methods=['POST'])
-def detect():
-    if 'frame' not in request.files:
-        return jsonify({'error': 'No frame uploaded'}), 400
+# ✅ Endpoint to test detection using static images (No Camera Needed)
+@app.route('/test_detection', methods=['POST'])
+def test_detection():
+    if 'image' not in request.files:
+        return jsonify({'error': 'No image uploaded'}), 400
 
-    # Read the uploaded frame
-    file = request.files['frame']
+    file = request.files['image']
     npimg = np.frombuffer(file.read(), np.uint8)
     frame = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
 
-    # Perform YOLO detection
-    results = model(frame)
+    # Run YOLO detection with fine-tuned settings
+    results = model(frame, conf=0.6, iou=0.3)
 
     detections = []
     for box in results[0].boxes:
@@ -51,23 +51,27 @@ def detect():
         class_name = model.names[class_id]
         confidence = float(box.conf)
 
-        # Convert coordinates to a tuple
-        x1, y1, x2, y2 = map(int, box.xyxy.tolist()[0])
+        # ❌ Skip detections that are NOT cars
+        if class_name != "car":
+            continue
 
-        # Check if the detected car is inside a known parking space
+        x1, y1, x2, y2 = map(int, box.xyxy.tolist()[0])
+        print(f"🔍 Detected: {class_name} (ID: {class_id}) with {confidence:.2f} confidence")
+
+        # Check if detected car is inside a parking space
         for space_id, ((px1, py1), (px2, py2)) in PARKING_SPACES.items():
             if px1 < x1 < px2 and py1 < y1 < py2:
                 print(f"🚨 Violation Detected in Parking Space {space_id}")
                 send_violation_notification(space_id)
 
         detections.append({
-            'class_id': class_id,
-            'class_name': class_name,
-            'confidence': confidence,
-            'box': [x1, y1, x2, y2]
+            "class_id": class_id,
+            "class_name": class_name,
+            "confidence": confidence,
+            "coordinates": [x1, y1, x2, y2]
         })
 
-    return jsonify({'detections': detections})
+    return jsonify({"detections": detections})
 
 # ✅ Real-time video feed with YOLO detections
 @app.route('/video_feed', methods=['GET'])
@@ -80,7 +84,7 @@ def video_feed():
                 break
 
             # Run YOLO detection on frame
-            results = model(frame)
+            results = model(frame, conf=0.5, iou=0.4)
             annotated_frame = results[0].plot()
 
             # Encode frame to JPEG
@@ -105,8 +109,8 @@ def get_detections():
     if not ret:
         return jsonify({"error": "No frame captured"}), 500
 
-    # Run YOLO detection
-    results = model(frame)
+    # Run YOLO detection with fine-tuned settings
+    results = model(frame, conf=0.5, iou=0.4)
 
     detections = []
     for box in results[0].boxes:
@@ -115,7 +119,11 @@ def get_detections():
         confidence = float(box.conf)
         x1, y1, x2, y2 = map(int, box.xyxy.tolist()[0])
 
-        # Check if the detected car is inside a known parking space
+        # ❌ Ignore non-car objects
+        if class_name != "car":
+            continue
+
+        # Check if detected car is inside a parking space
         for space_id, ((px1, py1), (px2, py2)) in PARKING_SPACES.items():
             if px1 < x1 < px2 and py1 < y1 < py2:
                 print(f"🚨 Violation Detected in Parking Space {space_id}")

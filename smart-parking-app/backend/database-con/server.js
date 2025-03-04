@@ -98,8 +98,14 @@ app.post('/login', async (req, res) => {
           return res.status(500).json({ error: 'Failed to create session' });
         }
 
-        // Return the session token to the client
-        res.status(200).json({ message: 'Login successful', session_token: sessionToken });
+        // ✅ Return if user is admin
+        const isAdmin = username === 'admin';
+
+        res.status(200).json({
+          message: 'Login successful',
+          session_token: sessionToken,
+          isAdmin
+        });
       });
     });
   } catch (error) {
@@ -123,6 +129,25 @@ app.post('/logout', validateSession, (req, res) => {
       res.status(200).json({ message: 'Logged out successfully' });
     });
   });
+
+
+  app.put('/api/update-profile', async (req, res) => {
+    const { user_id, username, email } = req.body;
+
+    if (!user_id || !username || !email) {
+        return res.status(400).json({ error: "All fields are required" });
+    }
+
+    const query = `UPDATE users SET username = ?, email = ? WHERE user_id = ?`;
+    db.query(query, [username, email, user_id], (err, result) => {
+        if (err) {
+            console.error("Database error:", err);
+            return res.status(500).json({ error: "Failed to update profile" });
+        }
+        res.status(200).json({ message: "✅ Profile updated successfully!" });
+    });
+});
+
 
 
 
@@ -227,6 +252,49 @@ app.get('/api/parking-space/:space_id', (req, res) => {
   });
 });
 
+app.put('/api/update-parking-status/:space_id', async (req, res) => {
+  const { space_id } = req.params;  // ✅ Get space ID from URL
+  const { status } = req.body;      // ✅ Get new status from request body
+
+  if (!status) {
+      return res.status(400).json({ error: "New status is required" });
+  }
+
+  const query = `UPDATE parking_spaces SET status = ? WHERE space_id = ?`;
+  db.query(query, [status, space_id], (err, result) => {
+      if (err) {
+          console.error("Database error:", err);
+          return res.status(500).json({ error: "Failed to update parking status" });
+      }
+      if (result.affectedRows === 0) {
+          return res.status(404).json({ error: "❌ Parking space not found or no change in status" });
+      }
+      res.status(200).json({ message: "✅ Parking status updated successfully!" });
+  });
+});
+
+
+app.post('/api/add-parking-lot', async (req, res) => {
+  const { name, description, total_spaces, available_spaces } = req.body;
+
+  if (!name || !description || !total_spaces || !available_spaces) {
+      return res.status(400).json({ error: 'All fields are required' });
+  }
+
+  const query = `INSERT INTO parking_areas (area_id, name, description, total_spaces, available_spaces) VALUES (?, ?, ?, ?, ?)`;
+  const areaId = name.replace(/\s+/g, '').toUpperCase(); // Generate a unique ID like "ENG4"
+
+  db.query(query, [areaId, name, description, total_spaces, available_spaces], (err) => {
+      if (err) {
+          console.error("Database error:", err);
+          return res.status(500).json({ error: 'Database error' });
+      }
+      res.status(201).json({ message: 'Parking lot added successfully!' });
+  });
+});
+
+
+
 // 📌 Add a new notification
 app.post('/api/notifications', (req, res) => {
   const { message, parking_space_id } = req.body;
@@ -317,6 +385,24 @@ app.post('/api/detect_violation', (req, res) => {
           return res.status(500).json({ error: "Failed to insert notification" });
       }
       res.status(201).json({ message: "Violation recorded", notification: message });
+  });
+});
+
+
+app.post('/api/send-notification', async (req, res) => {
+  const { message, parking_space_id } = req.body;
+
+  if (!message || !parking_space_id) {
+      return res.status(400).json({ error: "Message and parking_space_id are required" });
+  }
+
+  const query = `INSERT INTO notifications (user_id, message, parking_space_id, is_read) VALUES (NULL, ?, ?, 0)`;
+  db.query(query, [message, parking_space_id], (err, result) => {
+      if (err) {
+          console.error("Database error:", err);
+          return res.status(500).json({ error: "Failed to insert notification" });
+      }
+      res.status(201).json({ message: "Notification sent successfully!", notification_id: result.insertId });
   });
 });
 

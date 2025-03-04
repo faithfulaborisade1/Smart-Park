@@ -9,17 +9,15 @@ const LoginScreen = ({ navigation }) => {
   const handleLogin = async () => {
     fetch('http://192.168.112.210:5000/login', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     })
       .then((response) => response.json())
       .then(async (data) => {
         if (data.session_token) {
           await AsyncStorage.setItem('session_token', data.session_token);
-          await AsyncStorage.setItem('username', username); // Store username
-          await AsyncStorage.setItem('last_login', new Date().toLocaleString()); // Store last login time
+          await AsyncStorage.setItem('username', username); // ✅ Store username
+          await AsyncStorage.setItem('isAdmin', data.isAdmin ? 'true' : 'false'); // ✅ Store admin access
           Alert.alert('Success', 'Login successful');
           navigation.navigate('HomeTabs');
         } else {
@@ -27,7 +25,8 @@ const LoginScreen = ({ navigation }) => {
         }
       })
       .catch(() => Alert.alert('Error', 'Something went wrong'));
-  };
+};
+
   
   
 
