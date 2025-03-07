@@ -8,7 +8,7 @@ const AddParkingLot = () => {
     const [availableSpaces, setAvailableSpaces] = useState('');
 
     const handleAddParkingLot = () => {
-        fetch('http://192.168.112.210:5000/api/add-parking-lot', {
+        fetch('http://192.168.80.210:5000/api/add-parking-lot', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, description, total_spaces: totalSpaces, available_spaces: availableSpaces })

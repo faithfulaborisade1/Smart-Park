@@ -8,7 +8,7 @@ const DetectionScreen = () => {
   // Fetch detections from the backend periodically
   useEffect(() => {
     const interval = setInterval(() => {
-      fetch('http://192.168.112.210:5001/detections')  // Backend API endpoint
+      fetch('http://192.168.80.210:5001/detections')  // Backend API endpoint
         .then((response) => response.json())
         .then((data) => {
           if (data.error) {

@@ -25,31 +25,28 @@ be passed to the `notificationRoutes` middleware for further processing. */
 app.post('/signup', async (req, res) => {
   const { username, email, password } = req.body;
 
-  if (!username || !email || !password) {
-    return res.status(400).json({ error: 'All fields are required' });
-  }
-
   try {
-    // Generate a salt
-    const salt = await bcrypt.genSalt(10);
-
-    // Hash the password with the salt
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Insert user into the database
-    const query = 'INSERT INTO users (username, email, password_hash, salt) VALUES (?, ?, ?, ?)';
-    db.query(query, [username, email, hashedPassword, salt], (err) => {
-      if (err) {
-        console.error(err);
-        return res.status(500).json({ error: 'Database error' });
+      // Check if username already exists
+      const [existingUser] = await db.promise().query("SELECT * FROM users WHERE username = ?", [username]);
+      if (existingUser.length > 0) {
+          return res.status(400).json({ error: "Username already taken. Please choose another one." });
       }
-      res.status(201).json({ message: 'User created successfully' });
-    });
+
+      // Continue with user registration
+      const salt = bcrypt.genSaltSync(10);
+      const hashedPassword = bcrypt.hashSync(password, salt);
+
+      await db.promise().query("INSERT INTO users (username, email, password_hash, salt) VALUES (?, ?, ?, ?)", 
+          [username, email, hashedPassword, salt]);
+
+      res.status(201).json({ message: "User registered successfully!" });
+
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Server error' });
+      console.error("Signup Error:", error);
+      res.status(500).json({ error: "An error occurred while processing your request." });
   }
 });
+
 
   
 
@@ -410,7 +407,7 @@ app.post('/api/send-notification', async (req, res) => {
   
   // Start server
   app.listen(port, '0.0.0.0', () => {
-    console.log(`Server running on http://192.168.112.210:${port}`);
+    console.log(`Server running on http://192.168.80.210:${port}`);
   });
 
   app.get('/', (req, res) => {

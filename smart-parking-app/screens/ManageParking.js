@@ -12,7 +12,7 @@ const ManageParking = () => {
             return;
         }
 
-        fetch(`http://192.168.112.210:5000/api/update-parking-status/${spaceId}`, {
+        fetch(`http://192.168.80.210:5000/api/update-parking-status/${spaceId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status: newStatus })  // ✅ Always valid status

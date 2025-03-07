@@ -6,7 +6,7 @@ const SendNotification = () => {
     const [parkingSpaceId, setParkingSpaceId] = useState('');
 
     const handleSendNotification = () => {
-        fetch('http://192.168.112.210:5000/api/send-notification', {
+        fetch('http://192.168.80.210:5000/api/send-notification', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message, parking_space_id: parkingSpaceId })

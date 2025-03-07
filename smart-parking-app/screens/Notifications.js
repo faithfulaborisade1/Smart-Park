@@ -1,85 +1,129 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useContext } from 'react';
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { Audio } from 'expo-av';
+import { ThemeContext } from '../components/ThemeContext'; // Adjust path if needed
 
 const NotificationsScreen = () => {
-    const [notifications, setNotifications] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [lastNotifiedId, setLastNotifiedId] = useState(null); // Tracks the last notification shown in a popup
+  const { darkMode } = useContext(ThemeContext); // Access global darkMode
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [lastNotifiedId, setLastNotifiedId] = useState(null);
 
-    // Fetch notifications with debouncing to avoid rapid re-renders
-    const fetchNotifications = useCallback(async () => {
-        try {
-            const response = await fetch('http://192.168.112.210:5000/api/notifications');
-            const data = await response.json();
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const response = await fetch('http://192.168.80.210:5000/api/notifications');
+      const data = await response.json();
 
-            if (Array.isArray(data) && data.length > 0) {
-                const latestNotification = data[0]; // Get the newest notification
-
-                // Only show popup if this is a new notification (not seen before)
-                if (!lastNotifiedId || latestNotification.notification_id > lastNotifiedId) {
-                    setLastNotifiedId(latestNotification.notification_id); // Update the last shown notification ID
-                    playAlertSound(); // Play sound for new notification
-                    Alert.alert("🔔 New Notification", latestNotification.message);
-                }
-
-                setNotifications(data); // Update the notification list
-            }
-        } catch (error) {
-            console.error("Error fetching notifications:", error);
-            Alert.alert("Error", "Failed to load notifications.");
-        } finally {
-            setLoading(false);
+      if (Array.isArray(data) && data.length > 0) {
+        const latestNotification = data[0];
+        if (!lastNotifiedId || latestNotification.notification_id > lastNotifiedId) {
+          setLastNotifiedId(latestNotification.notification_id);
+          playAlertSound();
+          Alert.alert('🔔 New Notification', latestNotification.message);
         }
-    }, [lastNotifiedId]); // Add lastNotifiedId as a dependency to re-fetch only when needed
+        setNotifications(data);
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      Alert.alert('Error', 'Failed to load notifications.');
+    } finally {
+      setLoading(false);
+    }
+  }, [lastNotifiedId]);
 
-    const playAlertSound = async () => {
-        try {
-            const { sound } = await Audio.Sound.createAsync(
-                require('../assets/notification.mp3') // Ensure you have a valid sound file
-            );
-            await sound.playAsync();
-        } catch (error) {
-            console.error("Failed to play sound:", error);
-        }
-    };
+  const playAlertSound = async () => {
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        require('../assets/notification.mp3') // Ensure this file exists
+      );
+      await sound.playAsync();
+    } catch (error) {
+      console.error('Failed to play sound:', error);
+    }
+  };
 
-    // Use useEffect to set up and clean up the polling interval
-    useEffect(() => {
-        fetchNotifications(); // Fetch initially
-        const interval = setInterval(fetchNotifications, 10000); // Poll every 10 seconds
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 10000);
+    return () => clearInterval(interval);
+  }, [fetchNotifications]);
 
-        // Cleanup interval on unmount to prevent memory leaks
-        return () => clearInterval(interval);
-    }, [fetchNotifications]); // Use fetchNotifications as dependency to re-run effect on function change
-
-    return (
-        <View style={styles.container}>
-            <Text style={styles.title}>🔔 Notifications</Text>
-            {loading ? (
-                <ActivityIndicator size="large" color="#0000ff" />
-            ) : (
-                <FlatList
-                    data={notifications}
-                    keyExtractor={(item) => item.notification_id.toString()}
-                    renderItem={({ item }) => (
-                        <View style={styles.notificationItem}>
-                            <Text style={styles.message}>{item.message}</Text>
-                            <Text style={styles.timestamp}>{new Date(item.created_at).toLocaleString()}</Text>
-                        </View>
-                    )}
-                />
-            )}
-        </View>
-    );
+  return (
+    <View style={[styles.container, darkMode ? styles.darkContainer : styles.lightContainer]}>
+      <Text style={[styles.title, darkMode ? styles.darkText : styles.lightText]}>
+        🔔 Notifications
+      </Text>
+      {loading ? (
+        <ActivityIndicator size="large" color={darkMode ? '#f7f9fc' : '#0000ff'} />
+      ) : (
+        <FlatList
+          data={notifications}
+          keyExtractor={(item) => item.notification_id.toString()}
+          renderItem={({ item }) => (
+            <View style={[styles.notificationItem, darkMode ? styles.darkItem : styles.lightItem]}>
+              <Text style={[styles.message, darkMode ? styles.darkText : styles.lightText]}>
+                {item.message}
+              </Text>
+              <Text style={[styles.timestamp, darkMode ? styles.darkTimestamp : styles.lightTimestamp]}>
+                {new Date(item.created_at).toLocaleString()}
+              </Text>
+            </View>
+          )}
+        />
+      )}
+    </View>
+  );
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, padding: 20, backgroundColor: '#f7f9fc' },
-    title: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 },
-    notificationItem: { padding: 15, backgroundColor: '#fff', borderRadius: 10, marginBottom: 10, elevation: 3 },
-    message: { fontSize: 16, fontWeight: '600', color: '#1a2e44' },
-    timestamp: { fontSize: 12, color: '#5a6e88', marginTop: 5 },
+  container: {
+    flex: 1,
+    padding: 20,
+  },
+  lightContainer: {
+    backgroundColor: '#f7f9fc', // Light mode background
+  },
+  darkContainer: {
+    backgroundColor: '#1c1c1c', // Dark mode background
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  notificationItem: {
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 10,
+    elevation: 3,
+  },
+  lightItem: {
+    backgroundColor: '#fff', // Light mode notification item
+  },
+  darkItem: {
+    backgroundColor: '#333', // Dark mode notification item
+  },
+  message: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  timestamp: {
+    fontSize: 12,
+    marginTop: 5,
+  },
+  lightText: {
+    color: '#1a2e44', // Light mode text
+  },
+  darkText: {
+    color: '#f7f9fc', // Dark mode text
+  },
+  lightTimestamp: {
+    color: '#5a6e88', // Light mode timestamp
+  },
+  darkTimestamp: {
+    color: '#999', // Dark mode timestamp (slightly muted for contrast)
+  },
 });
 
 export default NotificationsScreen;
