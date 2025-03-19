@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, Alert } from 'react-native';
 
+const API_BASE_URL = 'http://192.168.77.210:5000';
 const AddParkingLot = () => {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
@@ -8,7 +9,7 @@ const AddParkingLot = () => {
     const [availableSpaces, setAvailableSpaces] = useState('');
 
     const handleAddParkingLot = () => {
-        fetch('http://192.168.80.210:5000/api/add-parking-lot', {
+        fetch(`${API_BASE_URL}/api/add-parking-lot`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, description, total_spaces: totalSpaces, available_spaces: availableSpaces })

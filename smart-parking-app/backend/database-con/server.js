@@ -1,419 +1,454 @@
-// const { FLASK_BASE_URL } = require('./config');
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const db = require('./database'); // Import database connection
+const db = require('./database');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const validateSession = require('./middleware/validateSession');
-const { body, validationResult } = require('express-validator');
-// const notificationRoutes = require('./routes/notifications')
 
 const app = express();
 const port = 5000;
 
+// Predefined avatar options
+const avatarOptions = [
+  'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3FtdjVmdjJsc2xrdzI5cXF3NmR2M3Y0bTFsY2w4amFheDVhYjZ5ZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o85xIO33l7R9fci9W/giphy.gif', // Dog
+  'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExYTZmdmM2YzNrbjBweDV5c2xweDNodjN2c2x3cHFydmZhM3U5a2I5NiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/l0MYt5jPRARvPN4s8/giphy.gif', // Cat
+  'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExNTN3aGNkN2w3aHVvM3FocTBtdTFreWdxdTJvN3RtdjU0NHZhZDV6NiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/26FPy3QZQqGtDcrja/giphy.gif', // Robot
+  'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExaXF3eDJ2a3J5a3Y5cG5mZGpueHNyM2ZhZmN2aWp1aW1idnM2dG1rZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o6Zt6KHxJTzLpxD0I/giphy.gif', // Astronaut
+];
+
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
-/* The line `app.use('/api', notificationRoutes);` is mounting the `notificationRoutes` middleware at
-the `/api` path in the Express application. This means that any requests that start with `/api` will
-be passed to the `notificationRoutes` middleware for further processing. */
-// app.use('/api', notificationRoutes);
 
-
-
+// Signup Endpoint
 app.post('/signup', async (req, res) => {
   const { username, email, password } = req.body;
 
+  if (!username || !email || !password) {
+    return res.status(400).json({ error: 'SIGNUP-001: Username, email, and password are required' });
+  }
+
   try {
-      // Check if username already exists
-      const [existingUser] = await db.promise().query("SELECT * FROM users WHERE username = ?", [username]);
-      if (existingUser.length > 0) {
-          return res.status(400).json({ error: "Username already taken. Please choose another one." });
-      }
+    const [existingUser] = await db.promise().query('SELECT * FROM users WHERE username = ? OR email = ?', [username, email]);
+    if (existingUser.length > 0) {
+      return res.status(409).json({ error: 'SIGNUP-002: Username or email already taken' });
+    }
 
-      // Continue with user registration
-      const salt = bcrypt.genSaltSync(10);
-      const hashedPassword = bcrypt.hashSync(password, salt);
+    const salt = bcrypt.genSaltSync(10);
+    const hashedPassword = bcrypt.hashSync(password, salt);
+    const randomAvatar = avatarOptions[Math.floor(Math.random() * avatarOptions.length)];
 
-      await db.promise().query("INSERT INTO users (username, email, password_hash, salt) VALUES (?, ?, ?, ?)", 
-          [username, email, hashedPassword, salt]);
+    await db.promise().query(
+      'INSERT INTO users (username, email, password_hash, salt, avatar) VALUES (?, ?, ?, ?, ?)',
+      [username, email, hashedPassword, salt, randomAvatar]
+    );
 
-      res.status(201).json({ message: "User registered successfully!" });
-
+    res.status(201).json({ message: 'SIGNUP-000: User registered successfully' });
   } catch (error) {
-      console.error("Signup Error:", error);
-      res.status(500).json({ error: "An error occurred while processing your request." });
+    res.status(500).json({ error: 'SIGNUP-003: Server error during registration' });
   }
 });
 
-
-  
-
- 
-
+// Login Endpoint
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
-    return res.status(400).json({ error: 'All fields are required' });
+    return res.status(400).json({ error: 'LOGIN-001: Username and password are required' });
   }
 
   try {
-    // Fetch the user from the database
-    const query = 'SELECT * FROM users WHERE username = ?';
-    db.query(query, [username], async (err, results) => {
-      if (err) {
-        console.error(err);
-        return res.status(500).json({ error: 'Database error' });
-      }
-
-      if (results.length === 0) {
-        return res.status(401).json({ error: 'Invalid username or password' });
-      }
-
-      const user = results[0];
-
-      // Compare the hashed password
-      const isMatch = await bcrypt.compare(password, user.password_hash);
-      if (!isMatch) {
-        return res.status(401).json({ error: 'Invalid username or password' });
-      }
-
-      // Generate a session token
-      const sessionToken = crypto.randomBytes(64).toString('hex');
-
-      // Store the session in the database
-      const insertSessionQuery = `
-        INSERT INTO user_sessions (user_id, session_token, ip_address) 
-        VALUES (?, ?, ?)
-      `;
-      const userIp = req.ip || 'unknown'; // Get the user's IP address
-      db.query(insertSessionQuery, [user.user_id, sessionToken, userIp], (insertErr) => {
-        if (insertErr) {
-          console.error(insertErr);
-          return res.status(500).json({ error: 'Failed to create session' });
-        }
-
-        // ✅ Return if user is admin
-        const isAdmin = username === 'admin';
-
-        res.status(200).json({
-          message: 'Login successful',
-          session_token: sessionToken,
-          isAdmin
-        });
-      });
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-
- 
-
-app.post('/logout', validateSession, (req, res) => {
-    const sessionToken = req.headers.authorization;
-  
-    const query = 'DELETE FROM user_sessions WHERE session_token = ?';
-    db.query(query, [sessionToken], (err) => {
-      if (err) {
-        console.error(err);
-        return res.status(500).json({ error: 'Failed to logout' });
-      }
-      res.status(200).json({ message: 'Logged out successfully' });
-    });
-  });
-
-
-  app.put('/api/update-profile', async (req, res) => {
-    const { user_id, username, email } = req.body;
-
-    if (!user_id || !username || !email) {
-        return res.status(400).json({ error: "All fields are required" });
+    const [users] = await db.promise().query('SELECT * FROM users WHERE username = ?', [username]);
+    if (!users.length) {
+      return res.status(401).json({ error: 'LOGIN-003: Invalid username or password' });
     }
 
-    const query = `UPDATE users SET username = ?, email = ? WHERE user_id = ?`;
-    db.query(query, [username, email, user_id], (err, result) => {
-        if (err) {
-            console.error("Database error:", err);
-            return res.status(500).json({ error: "Failed to update profile" });
-        }
-        res.status(200).json({ message: "✅ Profile updated successfully!" });
+    const user = users[0];
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'LOGIN-003: Invalid username or password' });
+    }
+
+    const sessionToken = crypto.randomBytes(64).toString('hex');
+    await db.promise().query(
+      'INSERT INTO user_sessions (user_id, session_token, ip_address) VALUES (?, ?, ?)',
+      [user.user_id, sessionToken, req.ip || 'unknown']
+    );
+
+    const isAdmin = user.username === 'admin';
+    res.status(200).json({
+      message: 'LOGIN-000: Login successful',
+      session_token: sessionToken,
+      isAdmin,
     });
+  } catch (error) {
+    res.status(500).json({ error: 'LOGIN-005: Server error during login' });
+  }
 });
 
+// Logout Endpoint
+app.post('/logout', validateSession, async (req, res) => {
+  let sessionToken = req.headers.authorization?.startsWith('Bearer ')
+    ? req.headers.authorization.split(' ')[1]
+    : req.headers.authorization;
 
-
-
-//   app.get('/api/parking-status', (req, res) => {
-//     console.log('Received request for parking status');
-//     const query = 'SELECT space_id, space_number, status FROM parking_spaces';
-//     db.query(query, (err, results) => {
-//         if (err) {
-//             console.error(err);
-//             return res.status(500).json({ error: 'Database error' });
-//         }
-//         console.log('Sending response:', results);
-//         res.status(200).json(results);
-//     });
-// });
-
-// app.get('/api/parking-status', (req, res) => {
-//   const area = req.query.lot || 'EB1'; // 'lot' in query, but should match area_id
-
-//   if (!area.match(/^[A-Za-z0-9_-]+$/)) {  
-//       return res.status(400).json({ error: 'Invalid area ID' });
-//   }
-
-//   const query = 'SELECT * FROM parking_spaces WHERE area_id = ?'; // area_id instead of lot_id
-//   db.query(query, [area], (err, results) => {
-//       if (err) {
-//           console.error(err);
-//           return res.status(500).json({ error: 'Database error' });
-//       }
-//       res.json(results);
-//   });
-// });
-
-app.get('/api/parking-status', (req, res) => {
-  const { lot } = req.query;
-
-  if (!lot) {
-      return res.status(400).json([]); // Always return an array if no lot is provided
+  if (!sessionToken) {
+    return res.status(400).json({ error: 'LOGOUT-001: No session token provided' });
   }
 
-  const query = 'SELECT * FROM parking_spaces WHERE area_id = ?';
-  db.query(query, [lot], (err, results) => {
-      if (err) {
-          console.error("Database error:", err);
-          return res.status(500).json([]); // Return an empty array on error
-      }
+  try {
+    const [result] = await db.promise().query('DELETE FROM user_sessions WHERE session_token = ?', [sessionToken]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'LOGOUT-003: Session not found or already logged out' });
+    }
 
-      res.json(Array.isArray(results) ? results : []); // Ensure response is always an array
-  });
+    res.status(200).json({ message: 'LOGOUT-000: Logged out successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'LOGOUT-002: Server error during logout' });
+  }
 });
 
-app.get('/api/parking-summary', (req, res) => {
+// Update Profile Endpoint
+app.put('/api/update-profile', validateSession, async (req, res) => {
+  const sessionToken = req.headers.authorization?.split(' ')[1] || req.headers.authorization;
+  const { username, email, password, avatar } = req.body;
+
+  if (!username && !email && !password && !avatar) {
+    return res.status(400).json({ error: 'PROFILE-001: At least one field must be provided' });
+  }
+
+  try {
+    const [session] = await db.promise().query('SELECT user_id FROM user_sessions WHERE session_token = ?', [sessionToken]);
+    if (!session.length) {
+      return res.status(401).json({ error: 'PROFILE-002: Invalid or expired session token' });
+    }
+    const userId = session[0].user_id;
+
+    const [currentUser] = await db.promise().query('SELECT * FROM users WHERE user_id = ?', [userId]);
+    if (!currentUser.length) {
+      return res.status(404).json({ error: 'PROFILE-003: User not found' });
+    }
+
+    const updates = {};
+    if (username && username !== currentUser[0].username) {
+      const [existingUsername] = await db.promise().query('SELECT * FROM users WHERE username = ? AND user_id != ?', [username, userId]);
+      if (existingUsername.length > 0) {
+        return res.status(409).json({ error: 'PROFILE-004: Username already taken' });
+      }
+      updates.username = username;
+    }
+    if (email && email !== currentUser[0].email) {
+      const [existingEmail] = await db.promise().query('SELECT * FROM users WHERE email = ? AND user_id != ?', [email, userId]);
+      if (existingEmail.length > 0) {
+        return res.status(409).json({ error: 'PROFILE-005: Email already in use' });
+      }
+      updates.email = email;
+    }
+    if (password) {
+      const salt = bcrypt.genSaltSync(10);
+      updates.password_hash = bcrypt.hashSync(password, salt);
+      updates.salt = salt;
+    }
+    if (avatar) updates.avatar = avatar;
+
+    if (!Object.keys(updates).length) {
+      return res.status(400).json({ error: 'PROFILE-006: No changes provided to update' });
+    }
+
+    await db.promise().query(
+      'UPDATE users SET username = ?, email = ?, password_hash = ?, salt = ?, avatar = ? WHERE user_id = ?',
+      [
+        updates.username || currentUser[0].username,
+        updates.email || currentUser[0].email,
+        updates.password_hash || currentUser[0].password_hash,
+        updates.salt || currentUser[0].salt,
+        updates.avatar || currentUser[0].avatar,
+        userId,
+      ]
+    );
+
+    res.status(200).json({ message: 'PROFILE-000: Profile updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'PROFILE-007: Server error during profile update' });
+  }
+});
+
+// Parking-Related Endpoints
+app.get('/api/parking-status', async (req, res) => {
+  const { lot } = req.query;
+  if (!lot) return res.status(400).json({ error: 'PARKING-001: Lot parameter is required' });
+
+  try {
+    const [results] = await db.promise().query('SELECT * FROM parking_spaces WHERE area_id = ?', [lot]);
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({ error: 'PARKING-002: Server error fetching parking status' });
+  }
+});
+
+app.get('/api/parking-summary', async (req, res) => {
   const query = `
-      SELECT 
-          COUNT(*) AS total, 
-          SUM(CASE WHEN status = 'available' THEN 1 ELSE 0 END) AS available, 
-          SUM(CASE WHEN status = 'occupied' THEN 1 ELSE 0 END) AS occupied, 
-          SUM(CASE WHEN status = 'reserved' THEN 1 ELSE 0 END) AS reserved 
-      FROM parking_spaces
+    SELECT 
+      COUNT(*) AS total, 
+      SUM(CASE WHEN status = 'available' THEN 1 ELSE 0 END) AS available, 
+      SUM(CASE WHEN status = 'occupied' THEN 1 ELSE 0 END) AS occupied, 
+      SUM(CASE WHEN status = 'reserved' THEN 1 ELSE 0 END) AS reserved 
+    FROM parking_spaces
   `;
 
-  db.query(query, (err, results) => {
-      if (err) {
-          console.error("Database error:", err);
-          return res.status(500).json({ total: 0, available: 0, occupied: 0, reserved: 0 });
-      }
-
-      res.json(results[0]); // ✅ Send totals as an object
-  });
+  try {
+    const [results] = await db.promise().query(query);
+    res.json(results[0]);
+  } catch (error) {
+    res.status(500).json({ total: 0, available: 0, occupied: 0, reserved: 0 });
+  }
 });
 
-
-
-app.get('/api/parking-lots', (req, res) => {
-  const query = 'SELECT area_id AS id, name FROM parking_areas';
-
-  db.query(query, (err, results) => {
-      if (err) {
-          console.error("Database error:", err);
-          return res.status(500).json([]); // Always return an array on error
-      }
-      res.json(results.length > 0 ? results : []); // Ensure response is always an array
-  });
+app.get('/api/parking-lots', async (req, res) => {
+  try {
+    const [results] = await db.promise().query('SELECT area_id AS id, name FROM parking_areas');
+    res.json(results);
+  } catch (error) {
+    res.status(500).json([]);
+  }
 });
 
-
-app.get('/api/parking-space/:space_id', (req, res) => {
+app.get('/api/parking-space/:space_id', async (req, res) => {
   const { space_id } = req.params;
 
-  const query = 'SELECT space_id, space_number, latitude, longitude FROM parking_spaces WHERE space_id = ?';
-  db.query(query, [space_id], (err, results) => {
-      if (err) {
-          console.error("Database error:", err);
-          return res.status(500).json({ error: 'Database error' });
-      }
-
-      if (results.length === 0) {
-          return res.status(404).json({ error: 'Parking space not found' });
-      }
-
-      res.json(results[0]); // Return the first matching result
-  });
+  try {
+    const [results] = await db.promise().query(
+      'SELECT space_id, space_number, latitude, longitude FROM parking_spaces WHERE space_id = ?',
+      [space_id]
+    );
+    if (!results.length) {
+      return res.status(404).json({ error: 'PARKING-003: Parking space not found' });
+    }
+    res.json(results[0]);
+  } catch (error) {
+    res.status(500).json({ error: 'PARKING-004: Server error fetching parking space' });
+  }
 });
 
 app.put('/api/update-parking-status/:space_id', async (req, res) => {
-  const { space_id } = req.params;  // ✅ Get space ID from URL
-  const { status } = req.body;      // ✅ Get new status from request body
+  const { space_id } = req.params;
+  const { status } = req.body;
 
   if (!status) {
-      return res.status(400).json({ error: "New status is required" });
+    return res.status(400).json({ error: 'PARKING-005: New status is required' });
   }
 
-  const query = `UPDATE parking_spaces SET status = ? WHERE space_id = ?`;
-  db.query(query, [status, space_id], (err, result) => {
-      if (err) {
-          console.error("Database error:", err);
-          return res.status(500).json({ error: "Failed to update parking status" });
-      }
-      if (result.affectedRows === 0) {
-          return res.status(404).json({ error: "❌ Parking space not found or no change in status" });
-      }
-      res.status(200).json({ message: "✅ Parking status updated successfully!" });
-  });
+  try {
+    const [result] = await db.promise().query(
+      'UPDATE parking_spaces SET status = ? WHERE space_id = ?',
+      [status, space_id]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'PARKING-006: Parking space not found' });
+    }
+    res.status(200).json({ message: 'PARKING-000: Parking status updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'PARKING-007: Server error updating parking status' });
+  }
 });
-
 
 app.post('/api/add-parking-lot', async (req, res) => {
   const { name, description, total_spaces, available_spaces } = req.body;
 
   if (!name || !description || !total_spaces || !available_spaces) {
-      return res.status(400).json({ error: 'All fields are required' });
+    return res.status(400).json({ error: 'PARKING-008: All fields are required' });
   }
 
-  const query = `INSERT INTO parking_areas (area_id, name, description, total_spaces, available_spaces) VALUES (?, ?, ?, ?, ?)`;
-  const areaId = name.replace(/\s+/g, '').toUpperCase(); // Generate a unique ID like "ENG4"
+  const areaId = name.replace(/\s+/g, '').toUpperCase();
 
-  db.query(query, [areaId, name, description, total_spaces, available_spaces], (err) => {
-      if (err) {
-          console.error("Database error:", err);
-          return res.status(500).json({ error: 'Database error' });
-      }
-      res.status(201).json({ message: 'Parking lot added successfully!' });
-  });
+  try {
+    await db.promise().query(
+      'INSERT INTO parking_areas (area_id, name, description, total_spaces, available_spaces) VALUES (?, ?, ?, ?, ?)',
+      [areaId, name, description, total_spaces, available_spaces]
+    );
+    res.status(201).json({ message: 'PARKING-009: Parking lot added successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'PARKING-010: Server error adding parking lot' });
+  }
 });
 
-
-
-// 📌 Add a new notification
-app.post('/api/notifications', (req, res) => {
+// Notification Endpoints
+app.post('/api/notifications', async (req, res) => {
   const { message, parking_space_id } = req.body;
 
   if (!message || !parking_space_id) {
-      return res.status(400).json({ error: "Message and parking_space_id are required" });
+    return res.status(400).json({ error: 'NOTIF-001: Message and parking_space_id are required' });
   }
 
-  const query = `INSERT INTO notifications (user_id, message, parking_space_id, is_read) VALUES (NULL, ?, ?, 0)`;
-  db.query(query, [message, parking_space_id], (err, result) => {
-      if (err) {
-          console.error("Database error:", err);
-          return res.status(500).json({ error: "Failed to insert notification" });
-      }
-      res.status(201).json({ message: "Notification added", notification_id: result.insertId });
-  });
+  try {
+    const [result] = await db.promise().query(
+      'INSERT INTO notifications (user_id, message, parking_space_id, is_read) VALUES (NULL, ?, ?, 0)',
+      [message, parking_space_id]
+    );
+    res.status(201).json({ message: 'NOTIF-000: Notification added', notification_id: result.insertId });
+  } catch (error) {
+    res.status(500).json({ error: 'NOTIF-002: Server error adding notification' });
+  }
 });
 
-// 📌 Fetch all notifications
-app.get('/api/notifications', (req, res) => {
+app.get('/api/notifications', async (req, res) => {
   const query = `
-      SELECT n.notification_id, n.message, n.created_at, ps.space_number, pa.name AS area_name
-      FROM notifications n
-      LEFT JOIN parking_spaces ps ON n.parking_space_id = ps.space_id
-      LEFT JOIN parking_areas pa ON ps.area_id = pa.area_id
-      ORDER BY n.created_at DESC
+    SELECT n.notification_id, n.message, n.created_at, ps.space_number, pa.name AS area_name
+    FROM notifications n
+    LEFT JOIN parking_spaces ps ON n.parking_space_id = ps.space_id
+    LEFT JOIN parking_areas pa ON ps.area_id = pa.area_id
+    ORDER BY n.created_at DESC
   `;
 
-  db.query(query, (err, results) => {
-      if (err) {
-          console.error("Database error:", err);
-          return res.status(500).json({ error: "Failed to fetch notifications" });
-      }
-
-      // Format messages to include area & slot
-      const formattedNotifications = results.map(notif => ({
-          notification_id: notif.notification_id,
-          message: `⚠️ ${notif.area_name} - Slot ${notif.space_number}: ${notif.message}`,
-          created_at: notif.created_at
-      }));
-
-      res.status(200).json(formattedNotifications);
-  });
+  try {
+    const [results] = await db.promise().query(query);
+    const formattedNotifications = results.map(notif => ({
+      notification_id: notif.notification_id,
+      message: `⚠️ ${notif.area_name} - Slot ${notif.space_number}: ${notif.message}`,
+      created_at: notif.created_at
+    }));
+    res.status(200).json(formattedNotifications);
+  } catch (error) {
+    res.status(500).json({ error: 'NOTIF-003: Server error fetching notifications' });
+  }
 });
 
-// 📌 Mark a notification as read
-app.put('/api/notifications/:id/read', (req, res) => {
+app.put('/api/notifications/:id/read', async (req, res) => {
   const { id } = req.params;
-  const query = `UPDATE notifications SET is_read = 1 WHERE notification_id = ?`;
 
-  db.query(query, [id], (err, result) => {
-      if (err) {
-          console.error("Database error:", err);
-          return res.status(500).json({ error: "Failed to update notification" });
-      }
-      res.status(200).json({ message: "Notification marked as read" });
-  });
+  try {
+    const [result] = await db.promise().query('UPDATE notifications SET is_read = 1 WHERE notification_id = ?', [id]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'NOTIF-004: Notification not found' });
+    }
+    res.status(200).json({ message: 'NOTIF-005: Notification marked as read' });
+  } catch (error) {
+    res.status(500).json({ error: 'NOTIF-006: Server error updating notification' });
+  }
 });
 
-// 📌 Delete a notification
-app.delete('/api/notifications/:id', (req, res) => {
+app.delete('/api/notifications/:id', async (req, res) => {
   const { id } = req.params;
-  const query = `DELETE FROM notifications WHERE notification_id = ?`;
 
-  db.query(query, [id], (err, result) => {
-      if (err) {
-          console.error("Database error:", err);
-          return res.status(500).json({ error: "Failed to delete notification" });
-      }
-      res.status(200).json({ message: "Notification deleted" });
-  });
+  try {
+    const [result] = await db.promise().query('DELETE FROM notifications WHERE notification_id = ?', [id]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'NOTIF-007: Notification not found' });
+    }
+    res.status(200).json({ message: 'NOTIF-008: Notification deleted' });
+  } catch (error) {
+    res.status(500).json({ error: 'NOTIF-009: Server error deleting notification' });
+  }
 });
 
+// Mark a notification as read
+app.put('/api/notifications/:id/read', async (req, res) => {
+  const { id } = req.params;
 
-app.post('/api/detect_violation', (req, res) => {
+  try {
+    const [result] = await db.promise().query('UPDATE notifications SET is_read = 1 WHERE notification_id = ?', [id]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'NOTIF-004: Notification not found' });
+    }
+    res.status(200).json({ message: 'NOTIF-005: Notification marked as read' });
+  } catch (error) {
+    res.status(500).json({ error: 'NOTIF-006: Server error updating notification' });
+  }
+});
+
+// Delete a notification (New Endpoint)
+app.delete('/api/notifications/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const [result] = await db.promise().query('DELETE FROM notifications WHERE notification_id = ?', [id]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'NOTIF-007: Notification not found' });
+    }
+    res.status(200).json({ message: 'NOTIF-008: Notification deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'NOTIF-009: Server error deleting notification' });
+  }
+});
+
+app.post('/api/update-parking-statuses', async (req, res) => {
+  const { spaces } = req.body;
+
+  if (!Array.isArray(spaces) || !spaces.length) {
+    return res.status(400).json({ error: 'PARKING-011: Invalid or empty spaces array' });
+  }
+
+  try {
+    const updates = spaces.map(async ({ space_id, status }) => {
+      const [current] = await db.promise().query('SELECT status FROM parking_spaces WHERE space_id = ?', [space_id]);
+      if (!current.length) throw new Error(`Space ${space_id} not found`);
+      const newStatus = current[0].status === 'reserved' ? current[0].status : status;
+      await db.promise().query('UPDATE parking_spaces SET status = ? WHERE space_id = ?', [newStatus, space_id]);
+    });
+
+    await Promise.all(updates);
+    res.status(200).json({ message: 'PARKING-012: Parking statuses updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'PARKING-013: Server error updating parking statuses' });
+  }
+});
+
+app.get('/api/parking-spaces', async (req, res) => {
+  try {
+    const [results] = await db.promise().query(
+      'SELECT space_id, space_number, area_id, status, latitude, longitude, x1, y1, x2, y2 FROM parking_spaces'
+    );
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({ error: 'PARKING-014: Server error fetching parking spaces' });
+  }
+});
+
+app.post('/api/detect_violation', async (req, res) => {
   const { parking_space_id, license_plate } = req.body;
 
   if (!parking_space_id) {
-      return res.status(400).json({ error: "Missing parking_space_id" });
+    return res.status(400).json({ error: 'VIOLATION-001: Parking_space_id is required' });
   }
 
-  const message = `🚧 Parking Violation Detected: Slot ${parking_space_id} is obstructed.`;
+  const message = `🚧 Parking Violation Detected: Slot ${parking_space_id} is obstructed${license_plate ? ` (License: ${license_plate})` : ''}.`;
 
-  const query = `INSERT INTO notifications (user_id, message, parking_space_id, is_read) VALUES (NULL, ?, ?, 0)`;
-  db.query(query, [message, parking_space_id], (err, result) => {
-      if (err) {
-          console.error("Database error:", err);
-          return res.status(500).json({ error: "Failed to insert notification" });
-      }
-      res.status(201).json({ message: "Violation recorded", notification: message });
-  });
+  try {
+    await db.promise().query(
+      'INSERT INTO notifications (user_id, message, parking_space_id, is_read) VALUES (NULL, ?, ?, 0)',
+      [message, parking_space_id]
+    );
+    res.status(201).json({ message: 'VIOLATION-000: Violation recorded', notification: message });
+  } catch (error) {
+    res.status(500).json({ error: 'VIOLATION-002: Server error recording violation' });
+  }
 });
-
 
 app.post('/api/send-notification', async (req, res) => {
   const { message, parking_space_id } = req.body;
 
   if (!message || !parking_space_id) {
-      return res.status(400).json({ error: "Message and parking_space_id are required" });
+    return res.status(400).json({ error: 'NOTIF-010: Message and parking_space_id are required' });
   }
 
-  const query = `INSERT INTO notifications (user_id, message, parking_space_id, is_read) VALUES (NULL, ?, ?, 0)`;
-  db.query(query, [message, parking_space_id], (err, result) => {
-      if (err) {
-          console.error("Database error:", err);
-          return res.status(500).json({ error: "Failed to insert notification" });
-      }
-      res.status(201).json({ message: "Notification sent successfully!", notification_id: result.insertId });
-  });
+  try {
+    const [result] = await db.promise().query(
+      'INSERT INTO notifications (user_id, message, parking_space_id, is_read) VALUES (NULL, ?, ?, 0)',
+      [message, parking_space_id]
+    );
+    res.status(201).json({ message: 'NOTIF-011: Notification sent successfully', notification_id: result.insertId });
+  } catch (error) {
+    res.status(500).json({ error: 'NOTIF-012: Server error sending notification' });
+  }
 });
 
+// Root Route
+app.get('/', (req, res) => {
+  res.send('Server is running');
+});
 
-  
-  // Start server
-  app.listen(port, '0.0.0.0', () => {
-    console.log(`Server running on http://192.168.80.210:${port}`);
-  });
-
-  app.get('/', (req, res) => {
-    res.send('Server is running');
-  });
-  
-  
-
-  
+// Start Server
+app.listen(port, '0.0.0.0', () => {
+  // Log to console only during development; consider a proper logger in production
+});

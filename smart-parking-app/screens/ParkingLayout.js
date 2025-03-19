@@ -1,10 +1,13 @@
-import React, { useEffect, useState, useCallback, useContext } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Dimensions, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ThemeContext } from '../components/ThemeContext'; // Adjust path if needed
-import carIcon from '../assets/car.png'; // Ensure this path is correct
+import { ThemeContext } from '../components/ThemeContext';
+import carIcon from '../assets/car.png';
+
+// API Config (Ideally move to config.js)
+const API_BASE_URL = 'http://192.168.77.210:5000';
 
 const { width } = Dimensions.get('window');
 const isMobile = width < 768;
@@ -16,50 +19,67 @@ const SPACE_WIDTH = CANVAS_WIDTH / 8.5;
 const SPACE_HEIGHT = SPACE_WIDTH * 1.5;
 
 const ParkingLot = () => {
-  const { darkMode } = useContext(ThemeContext); // Access global darkMode
+  const { darkMode } = useContext(ThemeContext);
   const [spaces, setSpaces] = useState([]);
   const [selectedLot, setSelectedLot] = useState(null);
   const [lots, setLots] = useState([]);
   const navigation = useNavigation();
+
+  // Fetch with retry logic
+  const fetchWithRetry = async (url, retries = 3) => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Fetch failed');
+        return await response.json();
+      } catch (error) {
+        if (i === retries - 1) throw error;
+        await new Promise(resolve => setTimeout(resolve, 1000)); // 1-second delay between retries
+      }
+    }
+  };
 
   useEffect(() => {
     fetchParkingLots();
   }, []);
 
   useEffect(() => {
-    fetchParkingStatus();
-    const interval = setInterval(fetchParkingStatus, 5000);
-    return () => clearInterval(interval);
-  }, [selectedLot]);
-
-  useFocusEffect(
-    useCallback(() => {
+    if (selectedLot) {
       fetchParkingStatus();
-    }, [selectedLot])
-  );
+      const statusInterval = setInterval(fetchParkingStatus, 2000);
+      return () => clearInterval(statusInterval);
+    }
+  }, [selectedLot]);
 
   const fetchParkingLots = async () => {
     try {
-      const response = await fetch('http://192.168.80.210:5000/api/parking-lots');
-      const data = await response.json();
-      if (!Array.isArray(data)) return;
+      const data = await fetchWithRetry(`${API_BASE_URL}/api/parking-lots`);
+      if (!Array.isArray(data)) {
+        Alert.alert('Error', 'Invalid parking lots data received');
+        setLots([]);
+        return;
+      }
       setLots(data);
       const lastLot = await AsyncStorage.getItem('last_selected_lot');
       setSelectedLot((lastLot && data.some(lot => lot.id === lastLot)) ? lastLot : (data[0]?.id || null));
     } catch (error) {
-      console.error('Error fetching parking lots:', error);
+      Alert.alert('Error', 'Unable to load parking lots. Please try again later.');
+      setLots([]);
     }
   };
 
-  const fetchParkingStatus = () => {
+  const fetchParkingStatus = async () => {
     if (!selectedLot) return;
-    fetch(`http://192.168.80.210:5000/api/parking-status?lot=${selectedLot}`)
-      .then(response => response.json())
-      .then(data => {
-        console.log('API Response for Parking Status:', data);
-        if (Array.isArray(data)) setSpaces(data);
-      })
-      .catch(error => console.error('Error fetching parking data:', error));
+    try {
+      const data = await fetchWithRetry(`${API_BASE_URL}/api/parking-status?lot=${selectedLot}`);
+      if (!Array.isArray(data)) {
+        throw new Error('Invalid parking status data received');
+      }
+      setSpaces(data);
+    } catch (error) {
+      Alert.alert('Error', 'Unable to load parking status. Please check your connection.');
+      setSpaces([]);
+    }
   };
 
   const topRow = spaces.slice(0, 8);
@@ -84,7 +104,9 @@ const ParkingLot = () => {
           style={[styles.picker, darkMode ? styles.darkPicker : styles.lightPicker]}
           onValueChange={(itemValue) => {
             setSelectedLot(itemValue);
-            AsyncStorage.setItem('last_selected_lot', itemValue);
+            AsyncStorage.setItem('last_selected_lot', itemValue).catch(() => {
+              // Silently fail; non-critical
+            });
           }}
         >
           {lots.map((lot) => (
@@ -95,11 +117,11 @@ const ParkingLot = () => {
 
       <View style={[styles.layoutCard, darkMode ? styles.darkCard : styles.lightCard]}>
         <Text style={[styles.sectionTitle, darkMode ? styles.darkText : styles.lightText]}>
-          Parking Layout - {selectedLot}
+          Parking Layout - {selectedLot || 'Select a Lot'}
         </Text>
 
         {/* Legend */}
-        <View style={styles.legend}>
+        <View style={[styles.legend, darkMode ? styles.darkLegend : styles.lightLegend]}>
           <View style={styles.legendItem}>
             <View style={[styles.legendBox, styles.available]} />
             <Text style={[styles.legendText, darkMode ? styles.darkText : styles.lightText]}>
@@ -115,7 +137,7 @@ const ParkingLot = () => {
           <View style={styles.legendItem}>
             <View style={[styles.legendBox, styles.reserved]} />
             <Text style={[styles.legendText, darkMode ? styles.darkText : styles.lightText]}>
-              Handicap
+              Disabled
             </Text>
           </View>
         </View>
@@ -131,7 +153,8 @@ const ParkingLot = () => {
                   styles.parkingSlot,
                   space.status === 'occupied' ? styles.occupied :
                   space.status === 'available' ? styles.available :
-                  styles.reserved
+                  styles.reserved,
+                  darkMode ? styles.darkSlot : styles.lightSlot
                 ]}
                 activeOpacity={0.8}
                 onPress={() => {
@@ -164,7 +187,7 @@ const ParkingLot = () => {
 
           {/* Driving Lane */}
           <View style={[styles.drivingLane, darkMode ? styles.darkDrivingLane : styles.lightDrivingLane]}>
-            <View style={styles.arrowLeft} />
+            <View style={[styles.arrowLeft, darkMode ? styles.darkArrow : styles.lightArrow]} />
           </View>
 
           {/* Middle Row */}
@@ -176,7 +199,8 @@ const ParkingLot = () => {
                   styles.parkingSlot,
                   space.status === 'occupied' ? styles.occupied :
                   space.status === 'available' ? styles.available :
-                  styles.reserved
+                  styles.reserved,
+                  darkMode ? styles.darkSlot : styles.lightSlot
                 ]}
                 activeOpacity={0.8}
                 onPress={() => {
@@ -209,7 +233,7 @@ const ParkingLot = () => {
 
           {/* Driving Lane */}
           <View style={[styles.drivingLane, darkMode ? styles.darkDrivingLane : styles.lightDrivingLane]}>
-            <View style={styles.arrowLeft} />
+            <View style={[styles.arrowLeft, darkMode ? styles.darkArrow : styles.lightArrow]} />
           </View>
 
           {/* Bottom Row */}
@@ -221,7 +245,8 @@ const ParkingLot = () => {
                   styles.parkingSlot,
                   space.status === 'occupied' ? styles.occupied :
                   space.status === 'available' ? styles.available :
-                  styles.reserved
+                  styles.reserved,
+                  darkMode ? styles.darkSlot : styles.lightSlot
                 ]}
                 activeOpacity={0.8}
                 onPress={() => {
@@ -263,10 +288,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   lightContainer: {
-    backgroundColor: '#f7f9fc', // Light mode background
+    backgroundColor: '#f7f9fc',
   },
   darkContainer: {
-    backgroundColor: '#1c1c1c', // Dark mode background
+    backgroundColor: '#1c1c1c',
   },
   title: {
     fontSize: 28,
@@ -458,10 +483,10 @@ const styles = StyleSheet.create({
     borderColor: '#f7f9fc',
   },
   lightText: {
-    color: '#1a2e44', // Light mode text
+    color: '#1a2e44',
   },
   darkText: {
-    color: '#f7f9fc', // Dark mode text
+    color: '#f7f9fc',
   },
   lightSubtitle: {
     color: '#5a6e88',

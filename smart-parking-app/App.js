@@ -10,7 +10,6 @@ import { ThemeProvider } from './components/ThemeContext';
 import LoginScreen from './screens/LoginScreen';
 import SignupScreen from './screens/SignupScreen';
 import Dashboard from './screens/Dashboard';
-import DetectionScreen from './screens/DetectionScreen';
 import ParkingLot from './screens/ParkingLayout';
 import ProfileScreen from './screens/ProfileScreen';
 import AdminDashboard from './screens/AdminDashboard';
@@ -44,7 +43,6 @@ const BottomTabNavigator = () => {
         tabBarIcon: ({ color, size }) => {
           let iconName;
           if (route.name === 'Dashboard') iconName = 'home-outline';
-          else if (route.name === 'Detection') iconName = 'camera-outline';
           else if (route.name === 'Parking Layout') iconName = 'car-outline';
           else if (route.name === 'Notifications') iconName = 'notifications-outline';
           else if (route.name === 'Profile') iconName = 'settings-outline';
@@ -56,7 +54,6 @@ const BottomTabNavigator = () => {
       })}
     >
       <Tab.Screen name="Dashboard" component={Dashboard} />
-      <Tab.Screen name="Detection" component={DetectionScreen} />
       <Tab.Screen name="Parking Layout" component={ParkingLot} />
       <Tab.Screen name="Notifications" component={Notifications} />
       <Tab.Screen name="Profile" component={ProfileScreen} />

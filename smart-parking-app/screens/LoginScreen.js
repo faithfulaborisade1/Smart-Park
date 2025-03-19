@@ -1,53 +1,51 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // Re-added
-import { format } from 'date-fns'; // Ensure this is installed
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { format } from 'date-fns';
+
+const API_BASE_URL = 'http://192.168.77.210:5000';
 
 const LoginScreen = ({ navigation }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
   const handleLogin = async () => {
-    console.log('✅ handleLogin triggered', { username, password });
-
     if (!username || !password) {
       Alert.alert('Error', 'Please enter both username and password');
       return;
     }
 
     try {
-      console.log('✅ Attempting fetch to http://192.168.80.210:5000/login');
-      const response = await fetch('http://192.168.80.210:5000/login', {
+      const response = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
-        timeout: 10000, // 10-second timeout
+        timeout: 10000, // 10-second timeout (optional, requires fetch polyfill or library)
       });
 
-      console.log('✅ Fetch successful - Status:', response.status, 'OK:', response.ok);
-
       const data = await response.json();
-      console.log('✅ Server response:', data);
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Invalid login credentials');
+      }
 
       if (data.session_token) {
-        // Store session data
-        await AsyncStorage.setItem('session_token', data.session_token);
-        await AsyncStorage.setItem('username', username);
-        await AsyncStorage.setItem('isAdmin', data.isAdmin ? 'true' : 'false');
-
-        // Store last login timestamp at the time of login
-        const loginTime = format(new Date(), 'MMM d, yyyy, h:mm a'); // e.g., "Mar 8, 2025, 10:30 AM"
-        await AsyncStorage.setItem('last_login', loginTime);
-        console.log('✅ Last login saved:', loginTime);
+        await AsyncStorage.multiSet([
+          ['session_token', data.session_token],
+          ['username', username],
+          ['isAdmin', data.isAdmin ? 'true' : 'false'],
+          ['last_login', format(new Date(), 'MMM d, yyyy, h:mm a')],
+        ]);
 
         Alert.alert('Success', 'Login successful');
         navigation.navigate('HomeTabs');
       } else {
-        Alert.alert('Error', data.error || 'Invalid login credentials');
+        throw new Error('No session token received from server');
       }
     } catch (error) {
-      console.error('❌ Fetch failed:', error.message);
-      Alert.alert('Error', `Login failed: ${error.message}. Check network or server.`);
+      Alert.alert('Error', error.message === 'Failed to fetch' 
+        ? 'Login failed: Network error. Check your connection.' 
+        : error.message || 'Login failed. Please try again.');
     }
   };
 

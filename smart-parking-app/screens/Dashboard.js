@@ -2,27 +2,33 @@ import React, { useEffect, useState, useContext } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { ThemeContext } from '../components/ThemeContext'; // Adjust path if needed
+import { ThemeContext } from '../components/ThemeContext';
+
+const API_BASE_URL = 'http://192.168.77.210:5000';
 
 const Dashboard = ({ navigation }) => {
-  const { darkMode } = useContext(ThemeContext); // Access global darkMode
-  const [username, setUsername] = useState('');
+  const { darkMode } = useContext(ThemeContext);
+  const [username, setUsername] = useState('User');
   const [parkingData, setParkingData] = useState({ total: 0, available: 0, occupied: 0, reserved: 0 });
-  const [lastLogin, setLastLogin] = useState('');
+  const [lastLogin, setLastLogin] = useState('N/A');
 
   useEffect(() => {
     const fetchUserData = async () => {
-      const storedUsername = await AsyncStorage.getItem('username');
-      const storedLastLogin = await AsyncStorage.getItem('last_login') || 'N/A';
-      setUsername(storedUsername || 'User');
-      setLastLogin(storedLastLogin);
+      try {
+        const storedUsername = await AsyncStorage.getItem('username');
+        const storedLastLogin = await AsyncStorage.getItem('last_login');
+        setUsername(storedUsername || 'User');
+        setLastLogin(storedLastLogin || 'N/A');
+      } catch (error) {
+        Alert.alert('Error', 'Failed to load user data');
+      }
     };
 
     const fetchParkingStatus = async () => {
       try {
-        const response = await fetch('http://192.168.80.210:5000/api/parking-summary');
+        const response = await fetch(`${API_BASE_URL}/api/parking-summary`);
+        if (!response.ok) throw new Error('Failed to fetch parking summary');
         const data = await response.json();
-        console.log('Dashboard API Response:', data);
         setParkingData({
           total: data.total || 0,
           available: data.available || 0,
@@ -30,7 +36,8 @@ const Dashboard = ({ navigation }) => {
           reserved: data.reserved || 0,
         });
       } catch (error) {
-        console.error('Error fetching parking summary:', error);
+        Alert.alert('Error', 'Unable to fetch parking data. Please try again later.');
+        setParkingData({ total: 0, available: 0, occupied: 0, reserved: 0 }); // Fallback
       }
     };
 
@@ -43,21 +50,29 @@ const Dashboard = ({ navigation }) => {
   const handleLogout = async () => {
     try {
       const sessionToken = await AsyncStorage.getItem('session_token');
-      const response = await fetch('http://192.168.80.210:5000/logout', {
+      if (!sessionToken) {
+        Alert.alert('Error', 'No active session found.');
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/logout`, {
         method: 'POST',
-        headers: { 'Authorization': sessionToken },
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`,
+          'Content-Type': 'application/json',
+        },
       });
 
-      if (response.ok) {
-        await AsyncStorage.clear();
-        Alert.alert('Success', 'Logged out successfully');
-        navigation.replace('Login');
-      } else {
-        Alert.alert('Error', 'Failed to logout');
+      const responseData = await response.json();
+      if (!response.ok) {
+        throw new Error(responseData.error || 'Failed to logout');
       }
+
+      await AsyncStorage.clear();
+      Alert.alert('Success', 'Logged out successfully');
+      navigation.replace('Login');
     } catch (error) {
-      console.error('Logout error:', error);
-      Alert.alert('Error', 'Something went wrong during logout');
+      Alert.alert('Error', error.message || 'Something went wrong during logout');
     }
   };
 
@@ -95,12 +110,6 @@ const Dashboard = ({ navigation }) => {
         <Text style={[styles.sectionTitle, darkMode ? styles.darkText : styles.lightText]}>
           Quick Actions
         </Text>
-        <ActionButton
-          title="Find Parking"
-          icon="car-outline"
-          onPress={() => navigation.navigate('Detection')}
-          darkMode={darkMode}
-        />
         <ActionButton
           title="View Layout"
           icon="map-outline"
@@ -145,10 +154,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   lightContainer: {
-    backgroundColor: '#f7f9fc', // Light mode background
+    backgroundColor: '#f7f9fc',
   },
   darkContainer: {
-    backgroundColor: '#1c1c1c', // Dark mode background
+    backgroundColor: '#1c1c1c',
   },
   header: {
     flexDirection: 'row',
@@ -159,10 +168,10 @@ const styles = StyleSheet.create({
     borderBottomColor: '#eee',
   },
   lightCard: {
-    backgroundColor: '#fff', // Light mode card
+    backgroundColor: '#fff',
   },
   darkCard: {
-    backgroundColor: '#333', // Dark mode card
+    backgroundColor: '#333',
   },
   welcomeText: {
     fontSize: 24,
@@ -222,10 +231,10 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   lightActionButton: {
-    backgroundColor: '#fff', // Light mode action button
+    backgroundColor: '#fff',
   },
   darkActionButton: {
-    backgroundColor: '#333', // Dark mode action button
+    backgroundColor: '#333',
   },
   actionText: {
     fontSize: 16,
@@ -233,10 +242,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   lightText: {
-    color: '#333', // Light mode text
+    color: '#333',
   },
   darkText: {
-    color: '#f7f9fc', // Dark mode text
+    color: '#f7f9fc',
   },
 });
 
