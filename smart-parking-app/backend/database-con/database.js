@@ -1,21 +1,27 @@
-const mysql = require('mysql2');
+const mysql = require('mysql2/promise');
 
-const db = mysql.createConnection({
-  host: 'smartpark-db-123.mysql.database.azure.com', // Replace with your host
-  user: 'adminuser', // Replace with your MySQL username
-  password: 'SmartPark123*', // Replace with your MySQL password
+const pool = mysql.createPool({
+  host: 'smartpark-db-123.mysql.database.azure.com',
+  user: 'adminuser',
+  password: 'SmartPark123*',
   database: 'smartpark',
   port: 3306,
-  ssl: { rejectUnauthorized: true } // Replace with your database name
+  ssl: { rejectUnauthorized: true },
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
 });
 
-
-db.connect((err) => {
-  if (err) {
-    console.error('❌ Error connecting to Azure MySQL:', err.message);
-  } else {
+// ✅ Test connection on startup
+(async () => {
+  try {
+    const connection = await pool.getConnection();
     console.log('✅ Connected to Azure MySQL database');
+    connection.release();
+  } catch (err) {
+    console.error('❌ Error connecting to Azure MySQL:', err.message);
+    process.exit(1); // Exit process if DB fails
   }
-});
+})();
 
-module.exports = db; // Export the database connection
+module.exports = pool;

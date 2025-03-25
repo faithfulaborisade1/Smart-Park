@@ -20,6 +20,7 @@ const Dashboard = ({ navigation }) => {
         setUsername(storedUsername || 'User');
         setLastLogin(storedLastLogin || 'N/A');
       } catch (error) {
+        console.error('Fetch User Data Error:', error);
         Alert.alert('Error', 'Failed to load user data');
       }
     };
@@ -27,7 +28,10 @@ const Dashboard = ({ navigation }) => {
     const fetchParkingStatus = async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/api/parking-summary`);
-        if (!response.ok) throw new Error('Failed to fetch parking summary');
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to fetch parking summary: ${response.status} - ${errorText}`);
+        }
         const data = await response.json();
         setParkingData({
           total: data.total || 0,
@@ -36,8 +40,9 @@ const Dashboard = ({ navigation }) => {
           reserved: data.reserved || 0,
         });
       } catch (error) {
+        console.error('Fetch Parking Status Error:', error.message);
         Alert.alert('Error', 'Unable to fetch parking data. Please try again later.');
-        setParkingData({ total: 0, available: 0, occupied: 0, reserved: 0 }); // Fallback
+        setParkingData({ total: 0, available: 0, occupied: 0, reserved: 0 });
       }
     };
 
@@ -48,34 +53,46 @@ const Dashboard = ({ navigation }) => {
   }, []);
 
   const handleLogout = async () => {
+    console.log('Logout button pressed');
     try {
       const sessionToken = await AsyncStorage.getItem('session_token');
+      console.log('Session Token:', sessionToken);
       if (!sessionToken) {
+        console.log('No session token found');
         Alert.alert('Error', 'No active session found.');
         return;
       }
-
+  
+      console.log('Making logout request to:', `${API_BASE_URL}/logout`);
       const response = await fetch(`${API_BASE_URL}/logout`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${sessionToken}`,
           'Content-Type': 'application/json',
         },
+      }).catch((error) => {
+        // Catch network errors (e.g., server unreachable)
+        throw new Error(`Network error: ${error.message}`);
       });
-
+  
+      console.log('Logout Response Status:', response.status);
       const responseData = await response.json();
+      console.log('Logout Response Data:', responseData);
+  
       if (!response.ok) {
-        throw new Error(responseData.error || 'Failed to logout');
+        throw new Error(responseData.error || `Logout failed with status ${response.status}`);
       }
-
+  
       await AsyncStorage.clear();
+      console.log('AsyncStorage cleared');
       Alert.alert('Success', 'Logged out successfully');
       navigation.replace('Login');
     } catch (error) {
+      console.error('Logout Error:', error.message);
       Alert.alert('Error', error.message || 'Something went wrong during logout');
     }
   };
-
+  
   return (
     <ScrollView style={[styles.container, darkMode ? styles.darkContainer : styles.lightContainer]}>
       {/* Header */}
