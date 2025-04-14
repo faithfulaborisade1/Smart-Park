@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeContext } from '../components/ThemeContext'; // Adjust path if needed
 
 // API Config (Ideally move to config.js)
-const API_BASE_URL = 'http://192.168.77.210:5000';
+const API_BASE_URL = 'http://192.168.147.210:5000';
 
 // Predefined list of animated avatar URLs
 const avatarOptions = [

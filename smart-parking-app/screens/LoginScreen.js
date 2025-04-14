@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'reac
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format } from 'date-fns';
 
-const API_BASE_URL = 'http://192.168.77.210:5000';
+const API_BASE_URL = 'http://192.168.147.210:5000';
 
 const LoginScreen = ({ navigation }) => {
   const [username, setUsername] = useState('');

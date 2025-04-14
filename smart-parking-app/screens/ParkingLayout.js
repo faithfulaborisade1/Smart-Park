@@ -7,7 +7,7 @@ import { ThemeContext } from '../components/ThemeContext';
 import carIcon from '../assets/car.png';
 
 // API Config (Ideally move to config.js)
-const API_BASE_URL = 'http://192.168.77.210:5000';
+const API_BASE_URL = 'http://192.168.147.210:5000';
 
 const { width } = Dimensions.get('window');
 const isMobile = width < 768;

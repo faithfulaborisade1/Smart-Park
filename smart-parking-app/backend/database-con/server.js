@@ -426,19 +426,20 @@ app.post('/api/detect_violation', async (req, res) => {
 
 app.post('/api/send-notification', async (req, res) => {
   const { message, parking_space_id } = req.body;
-
-  if (!message || !parking_space_id) {
-    return res.status(400).json({ error: 'NOTIF-010: Message and parking_space_id are required' });
-  }
-
+  let connection;
+  
   try {
-    const [result] = await db.query(
+    connection = await db.getConnection();
+    const [result] = await connection.query(
       'INSERT INTO notifications (user_id, message, parking_space_id, is_read) VALUES (NULL, ?, ?, 0)',
       [message, parking_space_id]
     );
     res.status(201).json({ message: 'NOTIF-011: Notification sent successfully', notification_id: result.insertId });
   } catch (error) {
+    console.error('❌ Error sending notification:', error);
     res.status(500).json({ error: 'NOTIF-012: Server error sending notification' });
+  } finally {
+    if (connection) connection.release();
   }
 });
 

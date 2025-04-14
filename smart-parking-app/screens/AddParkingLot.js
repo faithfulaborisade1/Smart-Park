@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, Alert } from 'react-native';
 
-const API_BASE_URL = 'http://192.168.77.210:5000';
+const API_BASE_URL = 'http://192.168.147.210:5000';
 const AddParkingLot = () => {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');

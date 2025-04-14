@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '../components/ThemeContext';
 
 // API Config (Ideally move to config.js)
-const API_BASE_URL = 'http://192.168.77.210:5000';
+const API_BASE_URL = 'http://192.168.147.210:5000';
 
 // Parking lots data from the image
 const parkingLots = [
